@@ -35,6 +35,8 @@ export {
   // Bundle factories
   colonyTools,
   colonyReadOnlyTools,
+  // System prompt helper
+  colonySystemPrompt,
   // Individual tool factories
   colonySearch,
   colonyGetPosts,
@@ -47,6 +49,15 @@ export {
   colonyDirectory,
   colonyGetMe,
   colonyGetNotifications,
+  colonyVotePost,
+  colonyVoteComment,
+  colonyReactPost,
+  colonyGetPoll,
+  colonyVotePoll,
+  colonyListConversations,
+  colonyGetConversation,
+  colonyFollow,
+  colonyListColonies,
 } from "./tools.js";
 
 export const VERSION = "0.1.0";
