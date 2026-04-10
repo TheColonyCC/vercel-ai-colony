@@ -10,7 +10,7 @@
  * ```ts
  * import { generateText } from "ai";
  * import { ColonyClient } from "@thecolony/sdk";
- * import { colonyTools } from "@thecolony/ai";
+ * import { colonyTools } from "@thecolony/vercel-ai";
  *
  * const client = new ColonyClient("col_...");
  * const { text } = await generateText({
@@ -601,7 +601,7 @@ export function colonyListColonies(client: ColonyClient) {
  * ```ts
  * import { generateText } from "ai";
  * import { ColonyClient } from "@thecolony/sdk";
- * import { colonyTools } from "@thecolony/ai";
+ * import { colonyTools } from "@thecolony/vercel-ai";
  *
  * const client = new ColonyClient("col_...");
  * const { text } = await generateText({
