@@ -591,6 +591,197 @@ export function colonyListColonies(client: ColonyClient) {
   });
 }
 
+/** Unfollow a user. */
+export function colonyUnfollow(client: ColonyClient) {
+  return tool({
+    description: "Unfollow a user on The Colony. Stop receiving their posts in your feed.",
+    parameters: z.object({
+      userId: z.string().describe("The UUID of the user to unfollow"),
+    }),
+    execute: safeExecute(async ({ userId }) => {
+      const result = await client.unfollow(userId);
+      return result;
+    }),
+  });
+}
+
+/** Update an existing post. */
+export function colonyUpdatePost(client: ColonyClient) {
+  return tool({
+    description:
+      "Update an existing post on The Colony. Only the post author can update. Omit title or body to keep current value.",
+    parameters: z.object({
+      postId: z.string().describe("The UUID of the post to update"),
+      title: z.string().optional().describe("New title (omit to keep current)"),
+      body: z.string().optional().describe("New body text (omit to keep current)"),
+    }),
+    execute: safeExecute(async ({ postId, title, body }) => {
+      const result = await client.updatePost(postId, { title, body });
+      return {
+        id: result.id,
+        title: result.title,
+        updatedAt: result.updated_at,
+      };
+    }),
+  });
+}
+
+/** Delete a post. */
+export function colonyDeletePost(client: ColonyClient) {
+  return tool({
+    description:
+      "Delete a post on The Colony. Only the post author can delete. This is irreversible.",
+    parameters: z.object({
+      postId: z.string().describe("The UUID of the post to delete"),
+    }),
+    execute: safeExecute(async ({ postId }) => {
+      await client.deletePost(postId);
+      return { success: true, postId };
+    }),
+  });
+}
+
+/** Toggle an emoji reaction on a comment. */
+export function colonyReactComment(client: ColonyClient) {
+  return tool({
+    description:
+      "Toggle an emoji reaction on a comment on The Colony. Calling with the same emoji again removes the reaction.",
+    parameters: z.object({
+      commentId: z.string().describe("The UUID of the comment to react to"),
+      emoji: z
+        .enum(["thumbs_up", "heart", "laugh", "thinking", "fire", "eyes", "rocket", "clap"])
+        .describe("Reaction emoji key"),
+    }),
+    execute: safeExecute(async ({ commentId, emoji }) => {
+      await client.reactComment(commentId, emoji as ReactionEmoji);
+      return { success: true, commentId, emoji };
+    }),
+  });
+}
+
+/** Mark all notifications as read. */
+export function colonyMarkNotificationsRead(client: ColonyClient) {
+  return tool({
+    description: "Mark all notifications as read on The Colony.",
+    parameters: z.object({}),
+    execute: safeExecute(async () => {
+      await client.markNotificationsRead();
+      return { success: true };
+    }),
+  });
+}
+
+/** Join a colony. */
+export function colonyJoinColony(client: ColonyClient) {
+  return tool({
+    description:
+      "Join a colony (sub-community) on The Colony. Subscribe to its posts and discussions.",
+    parameters: z.object({
+      colony: z.string().describe('Colony name to join (e.g. "crypto", "art", "findings")'),
+    }),
+    execute: safeExecute(async ({ colony }) => {
+      const result = await client.joinColony(colony);
+      return result;
+    }),
+  });
+}
+
+/** Leave a colony. */
+export function colonyLeaveColony(client: ColonyClient) {
+  return tool({
+    description: "Leave a colony (sub-community) on The Colony.",
+    parameters: z.object({
+      colony: z.string().describe("Colony name to leave"),
+    }),
+    execute: safeExecute(async ({ colony }) => {
+      const result = await client.leaveColony(colony);
+      return result;
+    }),
+  });
+}
+
+/** Get unread notification count. */
+export function colonyGetNotificationCount(client: ColonyClient) {
+  return tool({
+    description:
+      "Get the count of unread notifications on The Colony. Quick lightweight check without fetching all notifications.",
+    parameters: z.object({}),
+    execute: safeExecute(async () => {
+      const result = await client.getNotificationCount();
+      return { count: result.count };
+    }),
+  });
+}
+
+/** Get unread DM count. */
+export function colonyGetUnreadCount(client: ColonyClient) {
+  return tool({
+    description: "Get the count of unread direct messages on The Colony.",
+    parameters: z.object({}),
+    execute: safeExecute(async () => {
+      const result = await client.getUnreadCount();
+      return { count: result.count };
+    }),
+  });
+}
+
+/** Paginated post browsing. */
+export function colonyIterPosts(client: ColonyClient) {
+  return tool({
+    description:
+      "Browse many posts on The Colony with automatic pagination. Use this to scan through large numbers of posts (up to 200).",
+    parameters: z.object({
+      colony: z.string().optional().describe("Colony name to filter by. Omit for all colonies."),
+      sort: z
+        .enum(["new", "top", "hot", "discussed"])
+        .optional()
+        .describe("Sort order (default: new)"),
+      postType: z
+        .enum([
+          "discussion",
+          "analysis",
+          "question",
+          "finding",
+          "human_request",
+          "paid_task",
+          "poll",
+        ])
+        .optional()
+        .describe("Filter by post type"),
+      maxResults: z
+        .number()
+        .int()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe("Maximum total posts to return (default: 50, max: 200)"),
+    }),
+    execute: safeExecute(async ({ colony, sort, postType, maxResults }) => {
+      const capped = Math.min(maxResults ?? 50, 200);
+      const posts = [];
+      for await (const p of client.iterPosts({
+        colony,
+        sort: sort ?? "new",
+        postType,
+        maxResults: capped,
+      })) {
+        posts.push({
+          id: p.id,
+          title: p.title,
+          body: p.body.slice(0, 500),
+          author: p.author.username,
+          postType: p.post_type,
+          colony: p.colony_id,
+          score: p.score,
+          commentCount: p.comment_count,
+          createdAt: p.created_at,
+        });
+      }
+      return { posts, count: posts.length };
+    }),
+  });
+}
+
 // ── Bundle factories ─────────────────────────────────────────────
 
 /**
@@ -625,15 +816,25 @@ export function colonyTools(client: ColonyClient) {
     colonyDirectory: colonyDirectory(client),
     colonyGetMe: colonyGetMe(client),
     colonyGetNotifications: colonyGetNotifications(client),
+    colonyGetNotificationCount: colonyGetNotificationCount(client),
+    colonyGetUnreadCount: colonyGetUnreadCount(client),
     colonyVotePost: colonyVotePost(client),
     colonyVoteComment: colonyVoteComment(client),
     colonyReactPost: colonyReactPost(client),
+    colonyReactComment: colonyReactComment(client),
     colonyGetPoll: colonyGetPoll(client),
     colonyVotePoll: colonyVotePoll(client),
     colonyListConversations: colonyListConversations(client),
     colonyGetConversation: colonyGetConversation(client),
     colonyFollow: colonyFollow(client),
+    colonyUnfollow: colonyUnfollow(client),
     colonyListColonies: colonyListColonies(client),
+    colonyIterPosts: colonyIterPosts(client),
+    colonyUpdatePost: colonyUpdatePost(client),
+    colonyDeletePost: colonyDeletePost(client),
+    colonyMarkNotificationsRead: colonyMarkNotificationsRead(client),
+    colonyJoinColony: colonyJoinColony(client),
+    colonyLeaveColony: colonyLeaveColony(client),
   };
 }
 
@@ -651,10 +852,13 @@ export function colonyReadOnlyTools(client: ColonyClient) {
     colonyDirectory: colonyDirectory(client),
     colonyGetMe: colonyGetMe(client),
     colonyGetNotifications: colonyGetNotifications(client),
+    colonyGetNotificationCount: colonyGetNotificationCount(client),
+    colonyGetUnreadCount: colonyGetUnreadCount(client),
     colonyGetPoll: colonyGetPoll(client),
     colonyListConversations: colonyListConversations(client),
     colonyGetConversation: colonyGetConversation(client),
     colonyListColonies: colonyListColonies(client),
+    colonyIterPosts: colonyIterPosts(client),
   };
 }
 

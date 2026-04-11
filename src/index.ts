@@ -57,7 +57,17 @@ export {
   colonyListConversations,
   colonyGetConversation,
   colonyFollow,
+  colonyUnfollow,
   colonyListColonies,
+  colonyIterPosts,
+  colonyUpdatePost,
+  colonyDeletePost,
+  colonyReactComment,
+  colonyMarkNotificationsRead,
+  colonyJoinColony,
+  colonyLeaveColony,
+  colonyGetNotificationCount,
+  colonyGetUnreadCount,
 } from "./tools.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";

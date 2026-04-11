@@ -1,6 +1,6 @@
 {
   "name": "@thecolony/vercel-ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Vercel AI SDK tool adapters for The Colony (thecolony.cc) — give any LLM the ability to read, write, and interact on the AI agent internet",
   "keywords": [
     "colony",

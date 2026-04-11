@@ -29,7 +29,17 @@ import {
   colonyListConversations,
   colonyGetConversation,
   colonyFollow,
+  colonyUnfollow,
   colonyListColonies,
+  colonyIterPosts,
+  colonyUpdatePost,
+  colonyDeletePost,
+  colonyReactComment,
+  colonyMarkNotificationsRead,
+  colonyJoinColony,
+  colonyLeaveColony,
+  colonyGetNotificationCount,
+  colonyGetUnreadCount,
   colonySystemPrompt,
 } from "../src/tools.js";
 import type { ColonyClient } from "@thecolony/sdk";
@@ -126,11 +136,33 @@ function mockClient(overrides: Partial<ColonyClient> = {}): ColonyClient {
       ],
     }),
     follow: vi.fn().mockResolvedValue({}),
+    unfollow: vi.fn().mockResolvedValue({}),
     getColonies: vi
       .fn()
       .mockResolvedValue([
         { name: "general", display_name: "General", description: "Main colony", member_count: 100 },
       ]),
+    updatePost: vi.fn().mockResolvedValue({ id: "p1", title: "Updated", updated_at: "2026-01-02" }),
+    deletePost: vi.fn().mockResolvedValue({}),
+    reactComment: vi.fn().mockResolvedValue({}),
+    markNotificationsRead: vi.fn().mockResolvedValue({}),
+    joinColony: vi.fn().mockResolvedValue({ success: true }),
+    leaveColony: vi.fn().mockResolvedValue({ success: true }),
+    getNotificationCount: vi.fn().mockResolvedValue({ count: 5 }),
+    getUnreadCount: vi.fn().mockResolvedValue({ count: 3 }),
+    iterPosts: vi.fn().mockImplementation(async function* () {
+      yield {
+        id: "p1",
+        title: "Test",
+        body: "body",
+        author: { username: "alice" },
+        post_type: "discussion",
+        colony_id: "general",
+        score: 5,
+        comment_count: 2,
+        created_at: "2026-01-01",
+      };
+    }),
     ...overrides,
   } as unknown as ColonyClient;
 }
@@ -138,11 +170,11 @@ function mockClient(overrides: Partial<ColonyClient> = {}): ColonyClient {
 const opts = { toolCallId: "tc1", messages: [] as never[] };
 
 describe("colonyTools bundle", () => {
-  it("returns all 20 tools", () => {
+  it("returns all 30 tools", () => {
     const client = mockClient();
     const tools = colonyTools(client);
     const names = Object.keys(tools);
-    expect(names).toHaveLength(20);
+    expect(names).toHaveLength(30);
     expect(names).toContain("colonySearch");
     expect(names).toContain("colonyGetPosts");
     expect(names).toContain("colonyGetPost");
@@ -175,11 +207,11 @@ describe("colonyTools bundle", () => {
 });
 
 describe("colonyReadOnlyTools bundle", () => {
-  it("returns 12 tools", () => {
+  it("returns 15 tools", () => {
     const client = mockClient();
     const tools = colonyReadOnlyTools(client);
     const names = Object.keys(tools);
-    expect(names).toHaveLength(12);
+    expect(names).toHaveLength(15);
   });
 
   it("excludes write tools", () => {
@@ -413,6 +445,104 @@ describe("colonyListColonies", () => {
     const result = await t.execute({}, opts);
     expect(client.getColonies).toHaveBeenCalled();
     expect((result as any).colonies).toBeDefined();
+  });
+});
+
+describe("colonyUnfollow", () => {
+  it("calls client.unfollow", async () => {
+    const client = mockClient();
+    const t = colonyUnfollow(client);
+    await t.execute({ userId: "u1" }, opts);
+    expect(client.unfollow).toHaveBeenCalledWith("u1");
+  });
+});
+
+describe("colonyUpdatePost", () => {
+  it("calls client.updatePost", async () => {
+    const client = mockClient();
+    const t = colonyUpdatePost(client);
+    const result = await t.execute({ postId: "p1", title: "Updated" }, opts);
+    expect(client.updatePost).toHaveBeenCalledWith("p1", { title: "Updated", body: undefined });
+    expect((result as any).title).toBe("Updated");
+  });
+});
+
+describe("colonyDeletePost", () => {
+  it("calls client.deletePost", async () => {
+    const client = mockClient();
+    const t = colonyDeletePost(client);
+    const result = await t.execute({ postId: "p1" }, opts);
+    expect(client.deletePost).toHaveBeenCalledWith("p1");
+    expect((result as any).success).toBe(true);
+  });
+});
+
+describe("colonyReactComment", () => {
+  it("calls client.reactComment", async () => {
+    const client = mockClient();
+    const t = colonyReactComment(client);
+    const result = await t.execute({ commentId: "c1", emoji: "heart" }, opts);
+    expect(client.reactComment).toHaveBeenCalledWith("c1", "heart");
+    expect((result as any).emoji).toBe("heart");
+  });
+});
+
+describe("colonyMarkNotificationsRead", () => {
+  it("calls client.markNotificationsRead", async () => {
+    const client = mockClient();
+    const t = colonyMarkNotificationsRead(client);
+    const result = await t.execute({}, opts);
+    expect(client.markNotificationsRead).toHaveBeenCalled();
+    expect((result as any).success).toBe(true);
+  });
+});
+
+describe("colonyJoinColony", () => {
+  it("calls client.joinColony", async () => {
+    const client = mockClient();
+    const t = colonyJoinColony(client);
+    await t.execute({ colony: "crypto" }, opts);
+    expect(client.joinColony).toHaveBeenCalledWith("crypto");
+  });
+});
+
+describe("colonyLeaveColony", () => {
+  it("calls client.leaveColony", async () => {
+    const client = mockClient();
+    const t = colonyLeaveColony(client);
+    await t.execute({ colony: "crypto" }, opts);
+    expect(client.leaveColony).toHaveBeenCalledWith("crypto");
+  });
+});
+
+describe("colonyGetNotificationCount", () => {
+  it("calls client.getNotificationCount", async () => {
+    const client = mockClient();
+    const t = colonyGetNotificationCount(client);
+    const result = await t.execute({}, opts);
+    expect(client.getNotificationCount).toHaveBeenCalled();
+    expect((result as any).count).toBe(5);
+  });
+});
+
+describe("colonyGetUnreadCount", () => {
+  it("calls client.getUnreadCount", async () => {
+    const client = mockClient();
+    const t = colonyGetUnreadCount(client);
+    const result = await t.execute({}, opts);
+    expect(client.getUnreadCount).toHaveBeenCalled();
+    expect((result as any).count).toBe(3);
+  });
+});
+
+describe("colonyIterPosts", () => {
+  it("iterates posts", async () => {
+    const client = mockClient();
+    const t = colonyIterPosts(client);
+    const result = await t.execute({ colony: "general", sort: "top", maxResults: 10 }, opts);
+    expect(client.iterPosts).toHaveBeenCalled();
+    expect((result as any).count).toBe(1);
+    expect((result as any).posts[0]?.id).toBe("p1");
   });
 });
 
