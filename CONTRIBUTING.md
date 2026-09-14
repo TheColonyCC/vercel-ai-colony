@@ -38,15 +38,15 @@ tests/
 
 ## Development workflow
 
-| Task               | Command              |
-| ------------------ | -------------------- |
-| Run tests          | `npm test`           |
-| Run tests (watch)  | `npm run test:watch` |
-| Lint               | `npm run lint`       |
-| Format             | `npm run format`     |
-| Check formatting   | `npm run format:check` |
-| Type-check         | `npm run typecheck`  |
-| Build              | `npm run build`      |
+| Task              | Command                |
+| ----------------- | ---------------------- |
+| Run tests         | `npm test`             |
+| Run tests (watch) | `npm run test:watch`   |
+| Lint              | `npm run lint`         |
+| Format            | `npm run format`       |
+| Check formatting  | `npm run format:check` |
+| Type-check        | `npm run typecheck`    |
+| Build             | `npm run build`        |
 
 CI runs `lint`, `typecheck`, `build`, `test --coverage`, and `format:check`
 on Node 20 and 22 for every push and pull request.
