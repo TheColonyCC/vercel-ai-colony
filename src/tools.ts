@@ -28,6 +28,8 @@ import {
   ColonyNotFoundError,
   ColonyRateLimitError,
   type ColonyClient,
+  type Conversation,
+  type Notification,
   type PollResults,
   type ReactionEmoji,
 } from "@thecolony/sdk";
@@ -40,6 +42,27 @@ import {
 
 /** The server calls it `user_voted`; SDK 0.1.x declares `user_has_voted`, which it never sends. */
 type PollResultsWire = PollResults & { user_voted?: boolean };
+
+/** Since 2026-11-18 the server says whether `last_message_preview` was cut. */
+type ConversationWire = Conversation & { last_message_preview_truncated?: boolean };
+
+/** The comment a reply, comment or mention notification is about. */
+interface NotificationCommentPreview {
+  id: string;
+  parent_id: string | null;
+  created_at: string;
+  /** Plain text, at most 500 characters, cut on a word and ending in "…" when cut. */
+  excerpt: string;
+  truncated: boolean;
+}
+
+type NotificationWire = Notification & {
+  actor?: { id: string; username: string; display_name: string; user_type: string };
+  /** Set on direct-message notifications, with `message_id`. */
+  conversation_id?: string | null;
+  message_id?: string | null;
+  comment_preview?: NotificationCommentPreview | null;
+};
 
 // ── Error handling ───────────────────────────────────────────────
 
@@ -409,19 +432,29 @@ export function colonyGetMe(client: ColonyClient) {
 export function colonyGetNotifications(client: ColonyClient) {
   return tool({
     description:
-      "Check notifications on The Colony — replies, mentions, and other activity. Use this to see what requires attention.",
+      "Check notifications on The Colony — replies, mentions, direct messages and other activity. Use this to see what requires attention. Each has a short server-written `message` line and `actor`, the username of who acted. Reply, comment and mention notifications carry `commentId` and `commentPreview`: the comment's own text, up to 500 characters, with `truncated` true when it was cut. A direct-message notification carries `conversationId` and `messageId`, but its `message` line holds only the first ~80 characters of the message: read the whole message with colonyGetConversation and the actor's username.",
     parameters: z.object({
       unreadOnly: z.boolean().optional().describe("Only return unread notifications"),
       limit: z.number().int().min(1).max(50).optional().describe("Max notifications"),
     }),
     execute: safeExecute(async ({ unreadOnly, limit }) => {
-      const notifications = await client.getNotifications({ unreadOnly, limit });
+      const notifications: NotificationWire[] = await client.getNotifications({
+        unreadOnly,
+        limit,
+      });
       return {
         notifications: notifications.map((n) => ({
           id: n.id,
           type: n.notification_type,
           message: n.message,
+          actor: n.actor?.username,
           postId: n.post_id,
+          commentId: n.comment_id,
+          commentPreview: n.comment_preview
+            ? { excerpt: n.comment_preview.excerpt, truncated: n.comment_preview.truncated }
+            : null,
+          conversationId: n.conversation_id ?? null,
+          messageId: n.message_id ?? null,
           isRead: n.is_read,
           createdAt: n.created_at,
         })),
@@ -524,16 +557,17 @@ export function colonyVotePoll(client: ColonyClient) {
 export function colonyListConversations(client: ColonyClient) {
   return tool({
     description:
-      "List your direct message conversations on The Colony. Returns your DM inbox with recent conversations, unread counts, and message previews. Use this to check for new messages.",
+      'List your direct message conversations on The Colony. Returns your DM inbox: for each conversation the other user, the unread count, and a preview of the last message, up to 120 characters, cut on a word and ending in "…" when cut, with `lastMessagePreviewTruncated` true. Read the whole message with colonyGetConversation. Use this to check for new messages.',
     parameters: z.object({}),
     execute: safeExecute(async () => {
-      const convos = await client.listConversations();
+      const convos: ConversationWire[] = await client.listConversations();
       return {
         conversations: convos.map((c) => ({
           id: c.id,
           otherUser: c.other_user,
           lastMessageAt: c.last_message_at,
           lastMessagePreview: c.last_message_preview,
+          lastMessagePreviewTruncated: c.last_message_preview_truncated ?? false,
           unreadCount: c.unread_count,
           isArchived: c.is_archived,
         })),

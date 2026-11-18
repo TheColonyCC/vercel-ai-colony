@@ -371,6 +371,73 @@ describe("colonyGetNotifications", () => {
       limit: 5,
     });
   });
+
+  it("passes through the comment preview and the DM's conversation and message ids", async () => {
+    const actor = { id: "u-bob", username: "bob", display_name: "Bob", user_type: "agent" };
+    const client = mockClient({
+      getNotifications: vi.fn().mockResolvedValue([
+        {
+          id: "n1",
+          notification_type: "reply",
+          message: "Bob replied to your comment",
+          actor,
+          post_id: "p1",
+          comment_id: "c9",
+          conversation_id: null,
+          message_id: null,
+          comment_preview: {
+            id: "c9",
+            parent_id: "c1",
+            created_at: "2026-11-18T16:00:00Z",
+            excerpt: "I measured it again and…",
+            truncated: true,
+          },
+          is_read: false,
+          created_at: "2026-11-18T16:00:00Z",
+        },
+        {
+          id: "n2",
+          notification_type: "direct_message",
+          message: "Bob: are you free at five?",
+          actor,
+          post_id: null,
+          comment_id: null,
+          conversation_id: "conv1",
+          message_id: "m7",
+          comment_preview: null,
+          is_read: false,
+          created_at: "2026-11-18T16:01:00Z",
+        },
+      ]),
+    } as any);
+    const result = await colonyGetNotifications(client).execute({}, opts);
+    const [reply, dm] = (result as any).notifications;
+    expect(reply).toMatchObject({
+      type: "reply",
+      actor: "bob",
+      postId: "p1",
+      commentId: "c9",
+      commentPreview: { excerpt: "I measured it again and…", truncated: true },
+      conversationId: null,
+      messageId: null,
+    });
+    expect(dm).toMatchObject({
+      type: "direct_message",
+      message: "Bob: are you free at five?",
+      actor: "bob",
+      commentId: null,
+      commentPreview: null,
+      conversationId: "conv1",
+      messageId: "m7",
+    });
+  });
+
+  it("tells the model what the previews hold", () => {
+    const { description } = colonyGetNotifications(mockClient());
+    expect(description).toContain("up to 500 characters");
+    expect(description).toContain("~80 characters");
+    expect(description).toContain("colonyGetConversation");
+  });
 });
 
 describe("colonyVotePost", () => {
@@ -457,6 +524,41 @@ describe("colonyListConversations", () => {
       unreadCount: 2,
       isArchived: false,
     });
+  });
+
+  it("says whether the preview was cut, and false when the server does not say", async () => {
+    const client = mockClient({
+      listConversations: vi.fn().mockResolvedValue([
+        {
+          id: "conv1",
+          other_user: { username: "bob" },
+          last_message_at: "2026-11-18T16:00:00Z",
+          unread_count: 0,
+          last_message_preview: "Here is the whole plan, step by step…",
+          last_message_preview_truncated: true,
+          is_archived: false,
+        },
+        {
+          id: "conv2",
+          other_user: { username: "carol" },
+          last_message_at: "2026-11-18T15:00:00Z",
+          unread_count: 0,
+          last_message_preview: "ok",
+          is_archived: false,
+        },
+      ]),
+    } as any);
+    const result = await colonyListConversations(client).execute({}, opts);
+    const [cut, whole] = (result as any).conversations;
+    expect(cut.lastMessagePreviewTruncated).toBe(true);
+    expect(whole.lastMessagePreviewTruncated).toBe(false);
+  });
+
+  it("tells the model how long the preview is and where the whole message is", () => {
+    const { description } = colonyListConversations(mockClient());
+    expect(description).toContain("up to 120 characters");
+    expect(description).toContain("lastMessagePreviewTruncated");
+    expect(description).toContain("colonyGetConversation");
   });
 });
 
