@@ -119,10 +119,19 @@ function mockClient(overrides: Partial<ColonyClient> = {}): ColonyClient {
       total_votes: 0,
       is_closed: false,
       closes_at: null,
-      user_has_voted: false,
+      user_voted: false,
     }),
     votePoll: vi.fn().mockResolvedValue({}),
-    listConversations: vi.fn().mockResolvedValue([]),
+    listConversations: vi.fn().mockResolvedValue([
+      {
+        id: "conv1",
+        other_user: { username: "bob" },
+        last_message_at: "2026-11-18T16:00:00Z",
+        unread_count: 2,
+        last_message_preview: "see you at five",
+        is_archived: false,
+      },
+    ]),
     getConversation: vi.fn().mockResolvedValue({
       other_user: { username: "bob" },
       messages: [
@@ -148,8 +157,8 @@ function mockClient(overrides: Partial<ColonyClient> = {}): ColonyClient {
     markNotificationsRead: vi.fn().mockResolvedValue({}),
     joinColony: vi.fn().mockResolvedValue({ success: true }),
     leaveColony: vi.fn().mockResolvedValue({ success: true }),
-    getNotificationCount: vi.fn().mockResolvedValue({ count: 5 }),
-    getUnreadCount: vi.fn().mockResolvedValue({ count: 3 }),
+    getNotificationCount: vi.fn().mockResolvedValue({ unread_notifications: 5, unread_count: 5 }),
+    getUnreadCount: vi.fn().mockResolvedValue({ unread_direct_messages: 3, unread_count: 3 }),
     iterPosts: vi.fn().mockImplementation(async function* () {
       yield {
         id: "p1",
@@ -399,6 +408,25 @@ describe("colonyGetPoll", () => {
     expect(client.getPoll).toHaveBeenCalledWith("p1");
     expect((result as any).options).toBeDefined();
   });
+
+  it("reads the snake_case fields the API sends", async () => {
+    const client = mockClient({
+      getPoll: vi.fn().mockResolvedValue({
+        options: [],
+        total_votes: 7,
+        is_closed: true,
+        closes_at: "2026-11-20T00:00:00Z",
+        user_voted: true,
+      }),
+    } as any);
+    const result = await colonyGetPoll(client).execute({ postId: "p1" }, opts);
+    expect(result).toMatchObject({
+      totalVotes: 7,
+      isClosed: true,
+      closesAt: "2026-11-20T00:00:00Z",
+      userHasVoted: true,
+    });
+  });
 });
 
 describe("colonyVotePoll", () => {
@@ -417,6 +445,19 @@ describe("colonyListConversations", () => {
     await t.execute({}, opts);
     expect(client.listConversations).toHaveBeenCalled();
   });
+
+  it("reads the snake_case fields the API sends", async () => {
+    const client = mockClient();
+    const result = await colonyListConversations(client).execute({}, opts);
+    expect((result as any).conversations[0]).toMatchObject({
+      id: "conv1",
+      otherUser: { username: "bob" },
+      lastMessageAt: "2026-11-18T16:00:00Z",
+      lastMessagePreview: "see you at five",
+      unreadCount: 2,
+      isArchived: false,
+    });
+  });
 });
 
 describe("colonyGetConversation", () => {
@@ -426,6 +467,17 @@ describe("colonyGetConversation", () => {
     const result = await t.execute({ username: "bob" }, opts);
     expect(client.getConversation).toHaveBeenCalledWith("bob");
     expect((result as any).messages).toBeDefined();
+  });
+
+  it("reads the snake_case fields the API sends", async () => {
+    const client = mockClient();
+    const result = await colonyGetConversation(client).execute({ username: "bob" }, opts);
+    expect((result as any).otherUser).toEqual({ username: "bob" });
+    expect((result as any).messages[0]).toMatchObject({
+      id: "m1",
+      isRead: true,
+      createdAt: "2026-01-01",
+    });
   });
 });
 
@@ -444,7 +496,9 @@ describe("colonyListColonies", () => {
     const t = colonyListColonies(client);
     const result = await t.execute({}, opts);
     expect(client.getColonies).toHaveBeenCalled();
-    expect((result as any).colonies).toBeDefined();
+    expect((result as any).colonies).toEqual([
+      { name: "general", displayName: "General", description: "Main colony", memberCount: 100 },
+    ]);
   });
 });
 

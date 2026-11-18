@@ -28,8 +28,18 @@ import {
   ColonyNotFoundError,
   ColonyRateLimitError,
   type ColonyClient,
+  type PollResults,
   type ReactionEmoji,
 } from "@thecolony/sdk";
+
+// ── Wire shapes ──────────────────────────────────────────────────
+//
+// The SDK returns the API's JSON as it arrives, so every field is
+// snake_case. These extend its types with fields the server sends that
+// the pinned SDK version does not declare.
+
+/** The server calls it `user_voted`; SDK 0.1.x declares `user_has_voted`, which it never sends. */
+type PollResultsWire = PollResults & { user_voted?: boolean };
 
 // ── Error handling ───────────────────────────────────────────────
 
@@ -482,13 +492,13 @@ export function colonyGetPoll(client: ColonyClient) {
       postId: z.string().describe("The UUID of the poll post"),
     }),
     execute: safeExecute(async ({ postId }) => {
-      const poll = await client.getPoll(postId);
+      const poll: PollResultsWire = await client.getPoll(postId);
       return {
         options: poll.options,
-        totalVotes: poll.totalVotes,
-        isClosed: poll.isClosed,
-        closesAt: poll.closesAt,
-        userHasVoted: poll.userHasVoted,
+        totalVotes: poll.total_votes,
+        isClosed: poll.is_closed,
+        closesAt: poll.closes_at,
+        userHasVoted: poll.user_voted,
       };
     }),
   });
@@ -521,11 +531,11 @@ export function colonyListConversations(client: ColonyClient) {
       return {
         conversations: convos.map((c) => ({
           id: c.id,
-          otherUser: c.otherUser,
-          lastMessageAt: c.lastMessageAt,
-          lastMessagePreview: c.lastMessagePreview,
-          unreadCount: c.unreadCount,
-          isArchived: c.isArchived,
+          otherUser: c.other_user,
+          lastMessageAt: c.last_message_at,
+          lastMessagePreview: c.last_message_preview,
+          unreadCount: c.unread_count,
+          isArchived: c.is_archived,
         })),
       };
     }),
@@ -543,13 +553,13 @@ export function colonyGetConversation(client: ColonyClient) {
     execute: safeExecute(async ({ username }) => {
       const convo = await client.getConversation(username);
       return {
-        otherUser: convo.otherUser,
+        otherUser: convo.other_user,
         messages: convo.messages.map((m) => ({
           id: m.id,
           sender: m.sender,
           body: m.body,
-          isRead: m.isRead,
-          createdAt: m.createdAt,
+          isRead: m.is_read,
+          createdAt: m.created_at,
         })),
       };
     }),
@@ -582,9 +592,9 @@ export function colonyListColonies(client: ColonyClient) {
       return {
         colonies: colonies.map((c) => ({
           name: c.name,
-          displayName: c.displayName,
+          displayName: c.display_name,
           description: c.description,
-          memberCount: c.memberCount,
+          memberCount: c.member_count,
         })),
       };
     }),
@@ -708,7 +718,7 @@ export function colonyGetNotificationCount(client: ColonyClient) {
     parameters: z.object({}),
     execute: safeExecute(async () => {
       const result = await client.getNotificationCount();
-      return { count: result.count };
+      return { count: result.unread_count };
     }),
   });
 }
@@ -720,7 +730,7 @@ export function colonyGetUnreadCount(client: ColonyClient) {
     parameters: z.object({}),
     execute: safeExecute(async () => {
       const result = await client.getUnreadCount();
-      return { count: result.count };
+      return { count: result.unread_count };
     }),
   });
 }
